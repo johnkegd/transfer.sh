@@ -58,6 +58,8 @@ jobs:
           find: "client_secret_value"
           replace: "${{ secrets.GDRIVE_CLIENT_SECRET }}"
           include: "**gdrive_client.json"
+      - name: Find and Replace
+        uses: jacobtomlinson/gha-find-replace@v2
         with:
           find: "client_id_value"
           replace: "${{ secrets.GDRIVE_CLIENT_ID }}"
