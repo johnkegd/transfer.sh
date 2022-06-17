@@ -2,7 +2,7 @@ name: deploy multi-architecture Docker images for transfer.sh with buildx
 
 on:
   schedule:
-    - cron: '0 0 * * *' # everyday at midnight UTC
+    - cron: "0 0 * * *" # everyday at midnight UTC
   pull_request:
     branches: main
   push:
@@ -14,11 +14,9 @@ jobs:
   buildx:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Prepare
+      - name: Prepare
         id: prepare
         run: |
           DOCKER_IMAGE=registry.digitalocean.com/johnkegd/transfer.sh
@@ -54,47 +52,51 @@ jobs:
             --build-arg VCS_REF=${GITHUB_SHA::8} \
             --build-arg RUNAS=noroot \
             ${TAGS_NOROOT} .
-      -
-        name: Set up QEMU
+      - name: Find and Replace
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          find: "client_secret_value"
+          replace: "${{ secrets.GDRIVE_CLIENT_SECRET }}"
+          include: "**gdrive_client.json"
+        with:
+          find: "client_id_value"
+          replace: "${{ secrets.GDRIVE_CLIENT_ID }}"
+          include: "**gdrive_client.json"
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
           platforms: all
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v1
         with:
           version: latest
-      -
-        name: Available platforms
+      - name: Available platforms
         run: echo ${{ steps.buildx.outputs.platforms }}
-      -
-        name: Docker Buildx (build)
+      - name: Docker Buildx (build)
         run: |
           docker buildx build --no-cache --pull --output "type=image,push=false" ${{ steps.prepare.outputs.buildx_args }}
           docker buildx build --output "type=image,push=false" ${{ steps.prepare.outputs.buildx_args_noroot }}
-      #-
-       # name: Docker Login
-       # if: success() && github.event_name != 'pull_request'
-       # env:
+        # name: Docker Login
+        # if: success() && github.event_name != 'pull_request'
+        # env:
         #  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         #  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-       # run: |
-       #   echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+        # run: |
+        #   echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      #-
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITAL_OCEAN_API_TOKEN }}
       - name: Log in to DigitalOcean Container Registry with short-lived credentials
         run: doctl registry login --expiry-seconds 600
-      -
-        name: Docker Buildx (push)
+      - name: Docker Buildx (push)
         if: success() && github.event_name != 'pull_request'
         run: |
           docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
           docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args_noroot }}
-      -
-        name: Clear
+      - name: Clear
         if: always() && github.event_name != 'pull_request'
         run: |
           rm -f ${HOME}/.docker/config.json
